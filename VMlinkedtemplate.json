@@ -1,0 +1,169 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "functions": [],
+    "variables": {},
+    "resources": [{
+        "name": "linkedDeployment1",
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2020-10-01",
+        "properties": {
+            "mode": "Incremental",
+            "templateLink": {
+                "uri":"https://raw.githubusercontent.com/ayushagarwal1011/arm-template/main/storageAccountWithParameter.json",
+                "contentVersion": "1.0.0.0"
+            },
+            "parameters": {
+            }
+        }
+    },
+    {
+        "name": "linkedvm-PublicIP",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2019-11-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "PublicIPAddress"
+        },
+        "properties": {
+            "publicIPAllocationMethod": "Dynamic",
+            "dnsSettings": {
+                "domainNameLabel": "[toLower('linkedvm')]"
+            }
+        }
+    },
+    {
+        "name": "linkedvm-nsg",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2018-08-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": [
+                {
+                    "name": "nsgRule1",
+                    "properties": {
+                        "description": "description",
+                        "protocol": "Tcp",
+                        "sourcePortRange": "*",
+                        "destinationPortRange": "3389",
+                        "sourceAddressPrefix": "*",
+                        "destinationAddressPrefix": "*",
+                        "access": "Allow",
+                        "priority": 100,
+                        "direction": "Inbound"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "linkedvm-VirtualNetwork",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2019-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/networkSecurityGroups', 'linkedvm-nsg')]"
+        ],
+        "tags": {
+            "displayName": "linkedvm-VirtualNetwork"
+        },
+        "properties": {
+            "addressSpace": {
+                "addressPrefixes": [
+                    "10.0.0.0/16"
+                ]
+            },
+            "subnets": [
+                {
+                    "name": "linkedvm-VirtualNetwork-Subnet",
+                    "properties": {
+                        "addressPrefix": "10.0.0.0/24",
+                        "networkSecurityGroup": {
+                            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'linkedvm-nsg')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "linkedvm-NetworkInterface",
+        "type": "Microsoft.Network/networkInterfaces",
+        "apiVersion": "2019-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/publicIPAddresses', 'linkedvm-PublicIP')]",
+            "[resourceId('Microsoft.Network/virtualNetworks', 'linkedvm-VirtualNetwork')]"
+        ],
+        "tags": {
+            "displayName": "linkedvm Network Interface"
+        },
+        "properties": {
+            "ipConfigurations": [
+                {
+                    "name": "ipConfig1",
+                    "properties": {
+                        "privateIPAllocationMethod": "Dynamic",
+                        "publicIPAddress": {
+                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'linkedvm-PublicIP')]"
+                        },
+                        "subnet": {
+                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'linkedvm-VirtualNetwork', 'linkedvm-VirtualNetwork-Subnet')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "linkedvm",
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2019-07-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Resources/deployments', 'linkedDeployment1')]",
+            "[resourceId('Microsoft.Network/networkInterfaces', 'linkedvm-NetworkInterface')]"
+        ],
+        "tags": {
+            "displayName": "linkedvm"
+        },
+        "properties": {
+            "hardwareProfile": {
+                "vmSize": "Standard_B1s"
+            },
+            "osProfile": {
+                "computerName": "linkedvm",
+                "adminUsername": "adminUsername",
+                "adminPassword": "Random1234$$"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "MicrosoftWindowsServer",
+                    "offer": "WindowsServer",
+                    "sku": "2012-R2-Datacenter",
+                    "version": "latest"
+                },
+                "osDisk": {
+                    "name": "linkedvmOSDisk",
+                    "caching": "ReadWrite",
+                    "createOption": "FromImage"
+                }
+            },
+            "networkProfile": {
+                "networkInterfaces": [
+                    {
+                        "id": "[resourceId('Microsoft.Network/networkInterfaces', 'linkedvm-NetworkInterface')]"
+                    }
+                ]
+            }
+            /*"diagnosticsProfile": {
+                "bootDiagnostics": {
+                    "enabled": true,
+                    "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', 'storageaccountayush')).primaryEndpoints.blob]"
+                }
+            }*/
+        }
+    }],
+    "outputs": {}
+}
